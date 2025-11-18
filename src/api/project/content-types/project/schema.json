@@ -1,0 +1,75 @@
+{
+  "kind": "collectionType",
+  "collectionName": "projects",
+  "info": {
+    "singularName": "project",
+    "pluralName": "projects",
+    "displayName": "Project"
+  },
+  "options": {
+    "draftAndPublish": false
+  },
+  "pluginOptions": {},
+  "attributes": {
+    "permit_no": {
+      "type": "string",
+      "required": true,
+      "unique": true
+    },
+    "year": {
+      "type": "string",
+      "minLength": 4,
+      "maxLength": 4,
+      "required": true
+    },
+    "layout_no": {
+      "type": "string",
+      "required": true
+    },
+    "town": {
+      "type": "string"
+    },
+    "project_type": {
+      "type": "enumeration",
+      "required": true,
+      "enum": [
+        "electric_emergency",
+        "gas_emergency",
+        "permit"
+      ]
+    },
+    "project_status": {
+      "type": "enumeration",
+      "default": "in_progress",
+      "enum": [
+        "in_progress",
+        "completed"
+      ]
+    },
+    "const_start_date": {
+      "type": "date"
+    },
+    "const_end_date": {
+      "type": "date"
+    },
+    "rest_start_date": {
+      "type": "date"
+    },
+    "rest_end_date": {
+      "type": "date"
+    },
+    "lat": {
+      "type": "string"
+    },
+    "lng": {
+      "type": "string"
+    },
+    "address": {
+      "type": "text"
+    },
+    "permit_close_out": {
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

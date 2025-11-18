@@ -16,9 +16,11 @@
   },
   "dependencies": {
     "@strapi/plugin-cloud": "5.31.0",
+    "@strapi/plugin-graphql": "^5.31.0",
     "@strapi/plugin-users-permissions": "5.31.0",
     "@strapi/strapi": "5.31.0",
     "better-sqlite3": "12.4.1",
+    "pdf-lib": "^1.17.1",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
     "react-router-dom": "^6.0.0",
