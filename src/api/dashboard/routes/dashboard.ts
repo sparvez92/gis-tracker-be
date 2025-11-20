@@ -17,5 +17,14 @@ export default {
         auth: false,
       },
     },
+
+    {
+      method: "POST",
+      path: "/dashboard/upload-csv",
+      handler: "dashboard.uploadCsv",
+      config: {
+        auth: false,
+      },
+    },
   ],
 };

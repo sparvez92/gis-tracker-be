@@ -1,7 +1,42 @@
 import { Context } from "koa";
 import { Core } from "@strapi/strapi";
+import { PDFDocument, StandardFonts } from "pdf-lib";
 
-import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
+import csvParser from "csv-parser";
+import fs from "fs";
+import { isValid } from "date-fns";
+import axios from "axios";
+
+// Helper function to parse dates
+function parseDate(dateStr) {
+  if (!dateStr || dateStr === "-") return null;
+  const [month, day, year] = dateStr.split("/").map(Number);
+  if (!month || !day || !year) return null;
+  const fullYear = year < 100 ? 2000 + year : year;
+  const date = new Date(fullYear, month - 1, day);
+  return isValid(date) ? date.toISOString() : null;
+}
+
+// Helper function to get lat/lng from Google Maps API
+async function getLatLng(address) {
+  if (!address) return null;
+  try {
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+    const encoded = encodeURIComponent(address);
+    const res = await axios.get(
+      `https://maps.googleapis.com/maps/api/geocode/json?address=${encoded}&key=${apiKey}`
+    );
+    console.log("res -==>>", res.data);
+    const data = res.data;
+    if (data.status === "OK" && data.results.length > 0) {
+      const loc = data.results[0].geometry.location;
+      return { lat: loc.lat, lng: loc.lng };
+    }
+  } catch (err) {
+    console.error("Google Maps API error:", err.message);
+  }
+  return null;
+}
 
 export default {
   async summary(ctx: Context) {
@@ -94,6 +129,110 @@ export default {
     } catch (error) {
       console.error("Error generating PDF:", error);
       ctx.badRequest({ error: "Failed to generate PDF" });
+    }
+  },
+
+  async uploadCsv(ctx: Context) {
+    try {
+      // File coming from <input type="file"> on frontend
+      const file: any = ctx.request.files?.files;
+
+      if (!file) {
+        return ctx.badRequest("CSV file is required.");
+      }
+
+      const rows = [];
+
+      console.log({ file });
+
+      // Parse CSV file from the temporary uploaded file path
+      await new Promise((resolve, reject) => {
+        fs.createReadStream(file?.filepath)
+          .pipe(csvParser())
+          .on("data", (row) => rows.push(row))
+          .on("end", resolve)
+          .on("error", reject);
+      });
+
+      let processed = 0;
+
+      const errorProjects: string[] = [];
+
+      for (const row of rows) {
+        if (!row["Permit #"]?.trim()) {
+          continue; // Skip rows without Permit #
+        }
+
+        console.log("row ==>>", row);
+
+        const project: any = {
+          permit_no: row["Permit #"]?.trim(),
+          year: row["Year"]?.trim(),
+          address: row["Location"]?.trim(),
+          town: row["Town"]?.trim(),
+          layout_no: row["Layout #"]?.trim(),
+          const_start_date: parseDate(
+            row["Const.                   Start Date"]
+          ),
+          const_end_date: parseDate(row["Const.                   End Date"]),
+          rest_start_date: parseDate(row["Rest.                 Start Date"]),
+          rest_end_date: parseDate(row["Rest.                 End Date"]),
+          remarks: row["Remarks"]?.trim() || null,
+          project_type: "permit",
+        };
+
+        if (row["Permit Closeout"]?.trim()) {
+          project.permit_close_out =
+            row["Permit Closeout"]?.trim() === "N" ||
+            row["Permit Closeout"]?.trim()?.toLowerCase() === "no"
+              ? false
+              : true;
+        }
+
+        // Fetch lat/lng
+        const geo = await getLatLng(project.address);
+        console.log("geo ===>>>", geo);
+        if (geo) {
+          project.lat = geo.lat;
+          project.lng = geo.lng;
+        }
+
+        // Check if existing
+        const existing = await strapi.db.query("api::project.project").findOne({
+          where: { permit_no: project.permit_no },
+        });
+
+        try {
+          if (existing) {
+            await strapi.db.query("api::project.project").update({
+              where: { id: existing.id },
+              data: project,
+            });
+          } else {
+            await strapi.db.query("api::project.project").create({
+              data: project,
+            });
+          }
+        } catch (error) {
+          console.error(
+            `Error processing project with Permit # ${project.permit_no}:`,
+            error
+          );
+          errorProjects.push(project.permit_no);
+        }
+
+        processed++;
+      }
+
+      ctx.body = {
+        message: "CSV processed successfully",
+        total: rows.length,
+        errors: errorProjects,
+        processed,
+      };
+    } catch (error) {
+      console.error("Error processing CSV upload:", error);
+      ctx.badRequest({ error: "Failed to process CSV file" });
     }
   },
 };
