@@ -6,6 +6,7 @@ import csvParser from "csv-parser";
 import fs from "fs";
 import { isValid } from "date-fns";
 import axios from "axios";
+import project from "../../project/controllers/project";
 
 // Helper function to parse dates
 function parseDate(dateStr) {
@@ -83,21 +84,39 @@ export default {
 
   async generateProjectPDF(ctx: Context) {
     try {
-      const strapi = ctx.strapi as Core.Strapi;
+      // const strapi = ctx.strapi as Core.Strapi;
       // Example: Get project data from your database
+      const projectId = ctx.params.documentId;
+      console.log({ projectId });
+      const projectInfo = await strapi.db
+        .query("api::project.project")
+        .findOne({
+          where: {
+            documentId: projectId,
+          },
+        });
+      if (!projectInfo) {
+        return ctx.notFound("Project not found");
+      }
       const project = {
-        permit_no: "P12345",
-        year: 2025,
-        layout_no: "L001",
-        town: "Springfield",
-        project_type: "Electric Emergency",
-        const_start_date: "2025-01-10",
-        const_end_date: "2025-05-15",
-        address: "123 Main St, Springfield",
+        "Permit No": projectInfo.permit_no || "",
+        "Layout No": projectInfo.layout_no,
+        Year: projectInfo?.year,
+        "Project Type": projectInfo.project_type,
+        "Construction Start Date": projectInfo?.const_start_date ?? "-",
+        "Construction End Date": projectInfo?.const_end_date ?? "-",
+        "Restoration Start Date": projectInfo?.rest_start_date ?? "-",
+        "Restoration End Date": projectInfo?.rest_end_date ?? "-",
+        Town: projectInfo.town,
+        Address: projectInfo?.address,
+        Latitue: projectInfo?.lat ?? "-",
+        Longitude: projectInfo?.lng ?? "-",
+        "Permit Closeout": projectInfo?.permit_close_out ? "Yes" : "No",
+        "Project Status": projectInfo?.project_status ?? "-",
       };
 
       // Create a new PDF document
-      const pdfDoc = await PDFDocument.create();
+      const pdfDoc = await PDFDocument.create({});
 
       // Add a page
       const page = pdfDoc.addPage([600, 400]);
@@ -115,10 +134,14 @@ export default {
       y -= 40;
 
       for (const [key, value] of Object.entries(project)) {
-        page.drawText(`${key}: ${value}`, { x: 50, y, size: fontSize, font });
+        page.drawText(`${key}: \t ${value}`, {
+          x: 50,
+          y,
+          size: fontSize,
+          font,
+        });
         y -= lineHeight;
       }
-
       // Serialize PDF to bytes
       const pdfBytes = await pdfDoc.save();
 

@@ -8,7 +8,7 @@ export default {
 
     {
       method: "GET",
-      path: "/dashboard/generateProjectPDF",
+      path: "/dashboard/generateProjectPDF/:documentId",
       handler: "dashboard.generateProjectPDF",
     },
 
