@@ -17,5 +17,17 @@ export default {
       path: "/dashboard/upload-csv",
       handler: "dashboard.uploadCsv",
     },
+
+    {
+      method: 'GET',
+      path: '/dashboard/count-by-date',
+      handler: 'dashboard.countByDate',
+    },
+
+    {
+      method: 'GET',
+      path: '/dashboard/project-by-type',
+      handler: 'dashboard.projectByType',
+    },
   ],
 };

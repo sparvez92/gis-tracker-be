@@ -6,7 +6,7 @@ import csvParser from "csv-parser";
 import fs from "fs";
 import { isValid } from "date-fns";
 import axios from "axios";
-import project from "../../project/controllers/project";
+import dayjs from "dayjs";
 
 // Helper function to parse dates
 function parseDate(dateStr) {
@@ -18,6 +18,9 @@ function parseDate(dateStr) {
   return isValid(date) ? date.toISOString() : null;
 }
 
+export function formatMMDDYYYY(date: Date | string): string {
+  return date ? dayjs(date).format("MM/DD/YYYY") : "";
+}
 // Helper function to get lat/lng from Google Maps API
 async function getLatLng(address) {
   if (!address) return null;
@@ -41,7 +44,6 @@ async function getLatLng(address) {
 
 export default {
   async summary(ctx: Context) {
-    const strapi = ctx.strapi as Core.Strapi;
     const knex = strapi.db.connection;
 
     // Types for count queries
@@ -55,7 +57,7 @@ export default {
       .first()) as unknown as CountResult;
 
     const totalEmergency = (await knex("projects")
-      .whereIn("project_type", ["gas", "electric"])
+      .whereIn("project_type", ["gas_emergency", "electric_emergency"])
       .count("id as count")
       .first()) as unknown as CountResult;
 
@@ -79,9 +81,6 @@ export default {
     };
   },
 
-  // Install dependencies:
-  // npm install pdf-lib
-
   async generateProjectPDF(ctx: Context) {
     try {
       // const strapi = ctx.strapi as Core.Strapi;
@@ -103,10 +102,18 @@ export default {
         "Layout No": projectInfo.layout_no,
         Year: projectInfo?.year,
         "Project Type": projectInfo.project_type,
-        "Construction Start Date": projectInfo?.const_start_date ?? "-",
-        "Construction End Date": projectInfo?.const_end_date ?? "-",
-        "Restoration Start Date": projectInfo?.rest_start_date ?? "-",
-        "Restoration End Date": projectInfo?.rest_end_date ?? "-",
+        "Construction Start Date": projectInfo?.const_start_date
+          ? formatMMDDYYYY(projectInfo?.const_start_date)
+          : "-",
+        "Construction End Date": projectInfo?.const_end_date
+          ? formatMMDDYYYY(projectInfo?.const_end_date)
+          : "-",
+        "Restoration Start Date": projectInfo?.rest_start_date
+          ? formatMMDDYYYY(projectInfo?.rest_start_date)
+          : "-",
+        "Restoration End Date": projectInfo?.rest_end_date
+          ? formatMMDDYYYY(projectInfo?.rest_end_date)
+          : "-",
         Town: projectInfo.town,
         Address: projectInfo?.address,
         Latitue: projectInfo?.lat ?? "-",
@@ -120,7 +127,7 @@ export default {
 
       // Add a page
       const page = pdfDoc.addPage([600, 400]);
-      const { width, height } = page.getSize();
+      const { height } = page.getSize();
 
       // Set font
       const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -186,8 +193,6 @@ export default {
           continue; // Skip rows without Permit #
         }
 
-        console.log("row ==>>", row);
-
         const project: any = {
           permit_no: row["Permit #"]?.trim(),
           year: row["Year"]?.trim(),
@@ -201,7 +206,7 @@ export default {
           rest_start_date: parseDate(row["Rest.                 Start Date"]),
           rest_end_date: parseDate(row["Rest.                 End Date"]),
           remarks: row["Remarks"]?.trim() || null,
-          project_type: "permit",
+          project_type: "permit", // bug
         };
 
         if (row["Permit Closeout"]?.trim()) {
@@ -257,5 +262,72 @@ export default {
       console.error("Error processing CSV upload:", error);
       ctx.badRequest({ error: "Failed to process CSV file" });
     }
+  },
+
+  async countByDate(ctx) {
+    const { year } = ctx.query;
+
+    if (!year) {
+      return ctx.badRequest("Year parameter is required");
+    }
+
+    try {
+      const projects = await strapi.db.query("api::project.project").findMany({
+        where: {
+          const_start_date: {
+            $gte: new Date(`${year}-01-01`),
+            $lte: new Date(`${year}-12-31`),
+          },
+        },
+        select: ["const_start_date"],
+      });
+
+      const counts = {};
+
+      projects.forEach((p) => {
+        const date = p.const_start_date;
+        if (date) counts[date] = (counts[date] || 0) + 1;
+      });
+
+      const result = Object.keys(counts)
+        .sort()
+        .map((date) => ({ date, total: counts[date] }));
+
+      return ctx.send(result);
+    } catch (err) {
+      console.error(err);
+      return ctx.internalServerError("Something went wrong");
+    }
+  },
+
+  async projectByType(ctx: Context) {
+    // const strapi = ctx.strapi as Core.Strapi;
+    const knex = strapi.db.connection;
+
+    // Types for count queries
+    interface CountResult {
+      count: number;
+    }
+
+    const totalPermit = (await knex("projects")
+      .where("project_type", "permit")
+      .count("id as count")
+      .first()) as unknown as CountResult;
+
+    const totalGas = (await knex("projects")
+      .where("project_type", "gas_emergency")
+      .count("id as count")
+      .first()) as unknown as CountResult;
+
+    const totalElectric = (await knex("projects")
+      .where("project_type", "electric_emergency")
+      .count("id as count")
+      .first()) as unknown as CountResult;
+
+    ctx.body = {
+      totalPermit: totalPermit.count,
+      totalGas: totalGas.count,
+      totalElectric: totalElectric.count,
+    };
   },
 };
