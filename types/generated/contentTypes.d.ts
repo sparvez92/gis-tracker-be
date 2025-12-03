@@ -442,6 +442,7 @@ export interface ApiProjectProject extends Struct.CollectionTypeSchema {
   };
   attributes: {
     address: Schema.Attribute.Text;
+    comments: Schema.Attribute.Text;
     const_end_date: Schema.Attribute.Date;
     const_start_date: Schema.Attribute.Date;
     createdAt: Schema.Attribute.DateTime;

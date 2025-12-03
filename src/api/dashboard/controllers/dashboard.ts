@@ -1,5 +1,4 @@
 import { Context } from "koa";
-import { Core } from "@strapi/strapi";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 
 import csvParser from "csv-parser";
@@ -7,6 +6,7 @@ import fs from "fs";
 import { isValid } from "date-fns";
 import axios from "axios";
 import dayjs from "dayjs";
+import ExcelJS from "exceljs";
 
 // Helper function to parse dates
 function parseDate(dateStr) {
@@ -40,6 +40,62 @@ async function getLatLng(address) {
     console.error("Google Maps API error:", err.message);
   }
   return null;
+}
+
+function buildBackendFilters(filters) {
+  const andFilters = [];
+
+  if (filters?.year) {
+    andFilters.push({
+      year: { $eq: filters.year },
+    });
+  }
+
+  if (filters?.startDate) {
+    andFilters.push({
+      const_start_date: {
+        $gte: filters.startDate,
+      },
+    });
+  }
+
+  if (filters?.endDate) {
+    andFilters.push({
+      const_end_date: {
+        $lte: filters.endDate,
+      },
+    });
+  }
+
+  if (filters?.restStartDate) {
+    andFilters.push({
+      rest_start_date: {
+        $gte: filters.restStartDate,
+      },
+    });
+  }
+
+  if (filters?.restEndDate) {
+    andFilters.push({
+      rest_end_date: {
+        $lte: filters.restEndDate,
+      },
+    });
+  }
+
+  // Search → OR
+  if (filters?.search) {
+    andFilters.push({
+      $or: [
+        { permit_no: { $containsi: filters.search } },
+        { layout_no: { $containsi: filters.search } },
+        { town: { $containsi: filters.search } },
+        { address: { $containsi: filters.search } },
+      ],
+    });
+  }
+
+  return { $and: andFilters };
 }
 
 export default {
@@ -329,5 +385,87 @@ export default {
       totalGas: totalGas.count,
       totalElectric: totalElectric.count,
     };
+  },
+
+  async downloadExcel(ctx: Context) {
+    try {
+      const { filters } = ctx.request.body || {};
+      console.log("Received filters for Excel:", filters);
+
+      const filterQuery = filters ? buildBackendFilters(filters) : {};
+
+      console.log("Backend filter query:", JSON.stringify(filterQuery));
+
+      const projects = await strapi.entityService.findMany(
+        "api::project.project",
+        {
+          filters: filterQuery,
+          fields: [
+            "permit_no",
+            "year",
+            "layout_no",
+            "town",
+            "project_type",
+            "const_start_date",
+            "const_end_date",
+            "rest_start_date",
+            "rest_end_date",
+            "lat",
+            "lng",
+            "address",
+            "comments",
+            "permit_close_out"
+          ],
+          sort: { createdAt: "desc" },
+        }
+      );
+
+      console.log(`Fetched ${projects.length} projects for Excel export`);
+
+      const workbook = new ExcelJS.Workbook();
+      const sheet = workbook.addWorksheet("Projects");
+
+      sheet.columns = [
+        { header: "Permit No", key: "permit_no", width: 15 },
+        { header: "Year", key: "year", width: 10 },
+        { header: "Layout No", key: "layout_no", width: 15 },
+        { header: "Town", key: "town", width: 20 },
+        { header: "Project Type", key: "project_type", width: 20 },
+        { header: "Const Start Date", key: "const_start_date", width: 20 },
+        { header: "Const End Date", key: "const_end_date", width: 20 },
+        { header: "Rest Start Date", key: "rest_start_date", width: 20 },
+        { header: "Rest End Date", key: "rest_end_date", width: 20 },
+        {header: "Permit Closeout", key: "permit_close_out", width: 15},
+        { header: "Address", key: "address", width: 30 },
+        { header: "Additional Comments", key: "comments", width: 30 },
+      ];
+
+      projects.forEach((p) => {
+        sheet.addRow({
+          ...p,
+          const_start_date: p.const_start_date
+            ? formatMMDDYYYY(p.const_start_date)
+            : "",
+          const_end_date: p.const_end_date ? formatMMDDYYYY(p.const_end_date) : "",
+          rest_start_date: p.rest_start_date
+            ? formatMMDDYYYY(p.rest_start_date)
+            : "",
+          rest_end_date: p.rest_end_date ? formatMMDDYYYY(p.rest_end_date) : "",
+          permit_close_out: p.permit_close_out ? "Yes" : "No",
+        });
+      });
+
+      ctx.set(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      ctx.set("Content-Disposition", "attachment; filename=projects.xlsx");
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      ctx.body = buffer;
+    } catch (error) {
+      console.log("Excel Error:", error);
+      ctx.throw(500, "Unable to generate Excel file");
+    }
   },
 };

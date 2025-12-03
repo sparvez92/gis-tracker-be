@@ -29,5 +29,10 @@ export default {
       path: '/dashboard/project-by-type',
       handler: 'dashboard.projectByType',
     },
+    {
+      method: "POST",
+      path: "/dashboard/download-excel",
+      handler: "dashboard.downloadExcel",
+    },
   ],
 };
