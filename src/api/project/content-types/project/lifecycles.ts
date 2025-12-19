@@ -31,6 +31,6 @@ async function markProjectCompletion(event) {
     data.project_status = "completed"; // MUST match your enum key
   } else {
     // Optional: reset status if incomplete
-    // data.project_status = 'in_progress';
+    data.project_status = 'in_progress';
   }
 }
