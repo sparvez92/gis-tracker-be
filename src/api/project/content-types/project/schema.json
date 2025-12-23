@@ -24,7 +24,7 @@
     },
     "layout_no": {
       "type": "string",
-      "required": true
+      "required": false
     },
     "town": {
       "type": "string"

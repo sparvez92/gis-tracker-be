@@ -251,17 +251,17 @@ export default {
 
         const project: any = {
           permit_no: row["Permit #"]?.trim(),
-          year: row["Year"]?.trim(),
-          address: row["Location"]?.trim(),
-          town: row["Town"]?.trim(),
-          layout_no: row["Layout #"]?.trim(),
+          year: row["Year"]?.trim() || "",
+          address: row["Location"]?.trim() || "",
+          town: row["Town"]?.trim() || "",
+          layout_no: row["Layout #"]?.trim() || "",
           const_start_date: parseDate(
             row["Const.                   Start Date"]
           ),
           const_end_date: parseDate(row["Const.                   End Date"]),
           rest_start_date: parseDate(row["Rest.                 Start Date"]),
           rest_end_date: parseDate(row["Rest.                 End Date"]),
-          remarks: row["Remarks"]?.trim() || null,
+          comments: row["Remarks"]?.trim() || "",
           project_type: "permit", // bug
         };
 

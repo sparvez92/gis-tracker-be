@@ -449,7 +449,7 @@ export interface ApiProjectProject extends Struct.CollectionTypeSchema {
     createdBy: Schema.Attribute.Relation<'oneToOne', 'admin::user'> &
       Schema.Attribute.Private;
     lat: Schema.Attribute.String;
-    layout_no: Schema.Attribute.String & Schema.Attribute.Required;
+    layout_no: Schema.Attribute.String;
     lng: Schema.Attribute.String;
     locale: Schema.Attribute.String & Schema.Attribute.Private;
     localizations: Schema.Attribute.Relation<
