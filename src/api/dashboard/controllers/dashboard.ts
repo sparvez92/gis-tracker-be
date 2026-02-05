@@ -101,34 +101,60 @@ function buildBackendFilters(filters) {
 export default {
   async summary(ctx: Context) {
     const knex = strapi.db.connection;
+  
+    const year = ctx.query.year || null;
 
-    // Types for count queries
+    console.log({year})
     interface CountResult {
       count: number;
     }
-
-    const totalPermit = (await knex("projects")
-      .where("project_type", "permit")
+  
+    const applyYearFilter = (qb: any) => {
+      if (year) {
+        console.log("filter added for year", year);
+        qb.where("year", year);
+      }
+      return qb;
+    };
+  
+    const totalPermit = (await applyYearFilter(
+      knex("projects").where("project_type", "permit")
+    )
+      .count("id as count")
+      .first()) as unknown as CountResult;
+  
+    const totalEmergency = (await applyYearFilter(
+      knex("projects").whereIn("project_type", [
+        "gas_emergency",
+        "electric_emergency",
+      ])
+    )
+      .count("id as count")
+      .first()) as unknown as CountResult;
+  
+    const completedConstructions = (await applyYearFilter(
+      knex("projects")
+        .whereNotNull("const_start_date")
+        .whereNotNull("const_end_date")
+    )
+      .count("id as count")
+      .first()) as unknown as CountResult;
+  
+    const completedRestorations = (await applyYearFilter(
+      knex("projects")
+        .whereNotNull("rest_start_date")
+        .whereNotNull("rest_end_date")
+    )
       .count("id as count")
       .first()) as unknown as CountResult;
 
-    const totalEmergency = (await knex("projects")
-      .whereIn("project_type", ["gas_emergency", "electric_emergency"])
-      .count("id as count")
-      .first()) as unknown as CountResult;
-
-    const completedConstructions = (await knex("projects")
-      .whereNotNull("const_start_date")
-      .whereNotNull("const_end_date")
-      .count("id as count")
-      .first()) as unknown as CountResult;
-
-    const completedRestorations = (await knex("projects")
-      .whereNotNull("rest_start_date")
-      .whereNotNull("rest_end_date")
-      .count("id as count")
-      .first()) as unknown as CountResult;
-
+      console.log({
+        totalPermit: totalPermit.count,
+        totalEmergency: totalEmergency.count,
+        completedConstructions: completedConstructions.count,
+        completedRestorations: completedRestorations.count,
+      })
+  
     ctx.body = {
       totalPermit: totalPermit.count,
       totalEmergency: totalEmergency.count,
@@ -136,6 +162,7 @@ export default {
       completedRestorations: completedRestorations.count,
     };
   },
+  
 
   async generateProjectPDF(ctx: Context) {
     try {
@@ -330,10 +357,9 @@ export default {
     try {
       const projects = await strapi.db.query("api::project.project").findMany({
         where: {
-          const_start_date: {
-            $gte: new Date(`${year}-01-01`),
-            $lte: new Date(`${year}-12-31`),
-          },
+          year: {
+            $eq: year,
+          }
         },
         select: ["const_start_date"],
       });
